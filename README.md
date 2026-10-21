@@ -21,3 +21,10 @@ npm test
 
 Scene setup, parts, stored layout transforms, and UI live in separate modules.
 The Playwright smoke test checks that the Knolling button and canvas are visible.
+
+## Playwright MCP
+
+`.github/mcp.json` configures Playwright MCP for Copilot CLI in this repository.
+It runs locally through `npx` with a headless browser and an isolated profile.
+Start a new Copilot CLI session in this trusted repository to load it, then use
+`/mcp` to check its status. Run `npm run dev` before asking it to inspect the viewer.
