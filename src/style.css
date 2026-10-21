@@ -1,0 +1,60 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #edf2f7;
+  background: #131922;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #344155;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+button {
+  padding: 0.65rem 1rem;
+  border: 1px solid #8295b0;
+  border-radius: 0.4rem;
+  background: #253247;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:focus-visible {
+  outline: 2px solid #99caff;
+  outline-offset: 3px;
+}
+
+main {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+}
