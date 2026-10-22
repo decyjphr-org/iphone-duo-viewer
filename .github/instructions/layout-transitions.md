@@ -6,8 +6,9 @@
 - `src/layout.ts` stores layout snapshots; it does not compute distinct target layouts.
 - `src/parts.ts` creates the `closed-body` mesh, snapshots it, and adds it to the `iphone-duo` assembly.
 - Both saved layouts currently describe the same initial transform.
-- `src/scene.ts` continuously renders and updates orbit controls; it does not animate parts.
-- `src/ui.ts` creates an inert Knolling button with `aria-pressed="false"`.
+- `src/scene.ts` continuously renders and calls the camera-control wrapper's `update()`; it does not animate parts.
+- `src/controls.ts` owns camera actions, keyboard input, reduced-motion handling, and reset behavior.
+- `src/ui.ts` creates a disabled Knolling button with `aria-pressed="false"` alongside working camera controls.
 - There is no transition controller, duration, easing function, or assembled-layout snapshot yet.
 - Treat the implementation guidance below as requirements for future work, not existing APIs.
 
@@ -50,7 +51,7 @@ animate();
 ```
 
 - Add transition updates before rendering in this loop; do not start another loop from the UI.
-- Keep `controls.update()` before rendering because orbit damping is enabled.
+- Keep `controls.update()` before rendering; orbit damping is enabled unless reduced motion is requested.
 - Use elapsed time from animation timestamps rather than frame counts or fixed per-frame increments.
 - Capture each part's current pose and transition start time when a new target is selected.
 - Decompose target matrices into cached position, quaternion, and scale endpoints outside the hot loop.
@@ -66,17 +67,17 @@ animate();
 - Read physical dimensions from `src/specs.ts` and express target translations in millimeters.
 - The current closed-body proxy cannot demonstrate separation of internal components.
 - Before wiring the toggle, define what the off state restores: closed, assembled, and exploded are not interchangeable.
-- Add an explicit UI-to-viewer callback or control interface when needed; none exists today.
+- Camera buttons already connect through the `CameraActions` interface and `createUI().connect(actions)`; extend that boundary deliberately when adding layout actions.
 - Update `aria-pressed` consistently with the chosen toggle semantics once the button becomes functional.
 - Leave the existing placeholder inert unless implementing the feature is part of the task.
 
 ## Cleanup and verification
 
-- `createViewer()` returns the cleanup function invoked by the HMR handler in `src/main.ts`.
+- `createViewer()` returns camera actions and `dispose()`; `src/main.ts` disposes both the UI and viewer during HMR.
 - Keep cancellation tied to the latest scheduled `frame`; do not leave transition callbacks running after disposal.
 - Release any new UI listeners or playback state through the same lifecycle.
 - Do not recreate or dispose component geometry/materials merely to change their pose.
-- `tests/viewer.spec.ts` currently checks visibility only; it does not establish that transitions work.
+- `tests/viewer.spec.ts` checks camera controls and UI behavior; it does not establish that part-layout transitions work.
 - For new transition behavior, check endpoints, interrupted/reversed motion, and unchanged stored targets.
 - Verify progress is elapsed-time based and playback stops after cleanup.
 - Preserve orbit interaction during transitions unless a deliberate interaction change is requested.

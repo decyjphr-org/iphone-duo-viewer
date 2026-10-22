@@ -5,10 +5,13 @@ import { createUI } from './ui';
 const app = document.getElementById('app');
 if (!app) throw new Error('Missing app root');
 
-const dispose = createViewer(createUI(app));
+const ui = createUI(app);
+const viewer = createViewer(ui.viewer);
+ui.connect(viewer);
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
-    dispose();
+    ui.dispose();
+    viewer.dispose();
     app.replaceChildren();
   });
 }

@@ -6,11 +6,11 @@ import {
   Scene,
   WebGLRenderer,
 } from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { createCameraControls } from './controls';
 import { createPhone } from './parts';
 import { closedIPhoneDuo } from './specs';
 
-export function createViewer(container: HTMLElement): () => void {
+export function createViewer(container: HTMLElement) {
   const scene = new Scene();
   scene.background = new Color(0x131922);
 
@@ -22,12 +22,14 @@ export function createViewer(container: HTMLElement): () => void {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.domElement.setAttribute('role', 'img');
   renderer.domElement.setAttribute('aria-label', '3D view of the closed iPhone Duo');
+  renderer.domElement.setAttribute(
+    'aria-describedby',
+    'viewer-interaction-hint viewer-keyboard-help',
+  );
+  renderer.domElement.tabIndex = 0;
   container.append(renderer.domElement);
 
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.minDistance = size;
-  controls.maxDistance = size * 10;
+  const controls = createCameraControls(camera, renderer.domElement, size);
 
   const phone = createPhone();
   scene.add(phone.assembly);
@@ -56,13 +58,18 @@ export function createViewer(container: HTMLElement): () => void {
   }
   animate();
 
-  return () => {
-    cancelAnimationFrame(frame);
-    observer.disconnect();
-    controls.dispose();
-    scene.remove(phone.assembly);
-    phone.dispose();
-    renderer.dispose();
-    renderer.domElement.remove();
+  return {
+    zoomIn: controls.zoomIn,
+    zoomOut: controls.zoomOut,
+    resetView: controls.resetView,
+    dispose() {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      controls.dispose();
+      scene.remove(phone.assembly);
+      phone.dispose();
+      renderer.dispose();
+      renderer.domElement.remove();
+    },
   };
 }

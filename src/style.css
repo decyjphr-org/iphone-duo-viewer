@@ -24,7 +24,8 @@ header {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1.5rem;
+  padding: calc(1rem + env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    1rem max(1rem, env(safe-area-inset-left));
   border-bottom: 1px solid #344155;
 }
 
@@ -33,7 +34,15 @@ h1 {
   font-size: 1.25rem;
 }
 
+.view-status {
+  margin: 0;
+  color: #c4cedc;
+  font-size: 0.8rem;
+}
+
 button {
+  min-width: 44px;
+  min-height: 44px;
   padding: 0.65rem 1rem;
   border: 1px solid #8295b0;
   border-radius: 0.4rem;
@@ -41,20 +50,123 @@ button {
   color: inherit;
   font: inherit;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgb(153 202 255 / 30%);
 }
 
-button:focus-visible {
+button:enabled:hover {
+  border-color: #b9d5f5;
+  background: #34475f;
+}
+
+button:enabled:active {
+  border-color: #e1efff;
+  background: #415c7a;
+}
+
+button:disabled {
+  border-color: #526179;
+  background: #1b2534;
+  color: #a5b2c3;
+  cursor: not-allowed;
+}
+
+button:focus-visible,
+canvas:focus-visible {
   outline: 2px solid #99caff;
   outline-offset: 3px;
 }
 
 main {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
+.viewer-viewport {
+  flex: 1;
+  min-height: 0;
+}
+
+.viewer-tools {
+  flex-shrink: 0;
+  align-self: center;
+  width: 100%;
+  max-width: 48rem;
+  max-height: 60%;
+  overflow-y: auto;
+  padding: 0.75rem max(1rem, env(safe-area-inset-right))
+    max(0.75rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  text-align: center;
+}
+
+.camera-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.camera-actions button {
+  padding-inline: 0.75rem;
+}
+
+.interaction-hint {
+  margin: 0.75rem 0 0;
+  color: #c4cedc;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.touch-hint {
+  display: none;
+}
+
+.viewer-help {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #344155;
+  border-radius: 0.4rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.viewer-help p {
+  margin: 0.5rem 0;
+}
+
+.knolling-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  color: #a5b2c3;
+}
+
+.knolling-control button:disabled {
+  border-color: transparent;
+  background: transparent;
+  font-size: 0.8rem;
+}
+
 canvas {
   display: block;
   touch-action: none;
+}
+
+canvas:focus-visible {
+  outline-offset: -4px;
+}
+
+@media (pointer: coarse) {
+  .pointer-hint {
+    display: none;
+  }
+
+  .touch-hint {
+    display: inline;
+  }
 }

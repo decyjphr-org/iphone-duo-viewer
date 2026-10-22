@@ -10,8 +10,14 @@ npm install
 npm run dev
 ```
 
-Drag to orbit, scroll to zoom, and right-drag to pan. The Knolling toggle is a
-placeholder and intentionally does nothing.
+Drag to orbit, scroll to zoom, and right-drag to pan. On touch screens, pinch to
+zoom and use two fingers to pan. The bottom controls provide Zoom out, Zoom in,
+Reset view, and Help; the header identifies the current closed view.
+
+Tab to the viewer to use Arrow keys to rotate, Shift + Arrow keys to pan,
+Plus / Minus to zoom, and Home to reset. Shortcuts only apply while the viewer is focused.
+Reduced-motion preferences disable orbit inertia. The Knolling toggle remains a
+disabled, secondary placeholder with a visible "Coming soon" note.
 
 ```sh
 npm run build
@@ -20,7 +26,8 @@ npm test
 ```
 
 Scene setup, parts, stored layout transforms, and UI live in separate modules.
-The Playwright smoke test checks that the Knolling button and canvas are visible.
+Playwright covers the placeholder's accessible availability note, camera buttons,
+keyboard navigation, Help disclosure, and mobile hints and touch-target sizes.
 
 ## Playwright MCP
 

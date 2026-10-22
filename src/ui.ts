@@ -1,16 +1,119 @@
-export function createUI(root: HTMLElement): HTMLElement {
+import type { CameraActions } from './controls';
+
+function createButton(label: string, text = label): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = text;
+  if (text !== label) button.setAttribute('aria-label', label);
+  return button;
+}
+
+export function createUI(root: HTMLElement) {
+  const listeners = new AbortController();
+  const { signal } = listeners;
   const header = document.createElement('header');
   const title = document.createElement('h1');
   title.textContent = 'iPhone Duo';
-  const knolling = document.createElement('button');
-  knolling.type = 'button';
-  knolling.textContent = 'Knolling';
-  knolling.setAttribute('aria-pressed', 'false');
-  knolling.title = 'Knolling mode is not implemented yet';
-  header.append(title, knolling);
+  const viewStatus = document.createElement('p');
+  viewStatus.className = 'view-status';
+  viewStatus.textContent = 'Closed view';
+  header.append(title, viewStatus);
 
-  const viewer = document.createElement('main');
-  viewer.setAttribute('aria-label', 'Phone viewer');
-  root.append(header, viewer);
-  return viewer;
+  const main = document.createElement('main');
+  main.setAttribute('aria-label', 'Phone viewer');
+  const viewer = document.createElement('div');
+  viewer.className = 'viewer-viewport';
+  const panel = document.createElement('section');
+  panel.className = 'viewer-tools';
+  panel.setAttribute('aria-label', 'Viewer controls');
+
+  const cameraActions = document.createElement('div');
+  cameraActions.className = 'camera-actions';
+  cameraActions.setAttribute('role', 'group');
+  cameraActions.setAttribute('aria-label', 'Camera actions');
+  const zoomOut = createButton('Zoom out', '-');
+  const zoomIn = createButton('Zoom in', '+');
+  const resetView = createButton('Reset view');
+  const helpButton = createButton('Help');
+  helpButton.setAttribute('aria-expanded', 'false');
+  helpButton.setAttribute('aria-controls', 'viewer-help');
+  cameraActions.append(zoomOut, zoomIn, resetView, helpButton);
+
+  const hint = document.createElement('p');
+  hint.className = 'interaction-hint';
+  hint.id = 'viewer-interaction-hint';
+  hint.setAttribute('role', 'note');
+  const pointerHint = document.createElement('span');
+  pointerHint.className = 'pointer-hint';
+  pointerHint.textContent = 'Drag to rotate / Scroll to zoom / Right-drag to pan';
+  const touchHint = document.createElement('span');
+  touchHint.className = 'touch-hint';
+  touchHint.textContent = 'Drag to rotate / Pinch to zoom / Two-finger drag to pan';
+  hint.append(pointerHint, touchHint);
+
+  const help = document.createElement('div');
+  help.id = 'viewer-help';
+  help.className = 'viewer-help';
+  help.hidden = true;
+  help.setAttribute('role', 'region');
+  help.setAttribute('aria-label', 'Viewer help');
+  const keyboardHelp = document.createElement('p');
+  keyboardHelp.id = 'viewer-keyboard-help';
+  keyboardHelp.textContent =
+    'Focus the viewer: Arrow keys rotate; Shift + Arrow keys pan; + / - zoom; Home resets.';
+  const focusHelp = document.createElement('p');
+  focusHelp.textContent =
+    'Use Tab to reach the viewer or camera buttons. Press Escape here to close help.';
+  help.append(keyboardHelp, focusHelp);
+
+  function closeHelp() {
+    help.hidden = true;
+    helpButton.setAttribute('aria-expanded', 'false');
+  }
+  helpButton.addEventListener(
+    'click',
+    () => {
+      help.hidden = !help.hidden;
+      helpButton.setAttribute('aria-expanded', String(!help.hidden));
+    },
+    { signal },
+  );
+  panel.addEventListener(
+    'keydown',
+    (event) => {
+      if (event.key !== 'Escape' || help.hidden) return;
+      event.preventDefault();
+      closeHelp();
+      helpButton.focus();
+    },
+    { signal },
+  );
+
+  const knollingControl = document.createElement('div');
+  knollingControl.className = 'knolling-control';
+  const knolling = createButton('Knolling');
+  knolling.disabled = true;
+  knolling.setAttribute('aria-pressed', 'false');
+  knolling.setAttribute('aria-describedby', 'knolling-availability');
+  const availability = document.createElement('small');
+  availability.id = 'knolling-availability';
+  availability.setAttribute('role', 'note');
+  availability.textContent = 'Coming soon';
+  knollingControl.append(knolling, availability);
+
+  panel.append(cameraActions, hint, help, knollingControl);
+  main.append(viewer, panel);
+  root.append(header, main);
+
+  return {
+    viewer,
+    connect(actions: CameraActions) {
+      zoomIn.addEventListener('click', actions.zoomIn, { signal });
+      zoomOut.addEventListener('click', actions.zoomOut, { signal });
+      resetView.addEventListener('click', actions.resetView, { signal });
+    },
+    dispose() {
+      listeners.abort();
+    },
+  };
 }

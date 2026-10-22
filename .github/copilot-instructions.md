@@ -18,11 +18,11 @@ Currently renders one closed-body box with orbit controls; the Knolling toggle i
 - `npm test -- tests/viewer.spec.ts --grep "shows the Knolling button and the viewer canvas"`: run the existing smoke test by name
 
 ## Architecture
-- `src/main.ts` mounts the DOM UI, passes its viewer container to `createViewer`, and registers Vite HMR cleanup.
-- `src/ui.ts` owns DOM controls; `src/scene.ts` owns the renderer, camera, lighting, orbit controls, resize observer, and animation loop.
+- `src/main.ts` creates the UI and viewer, connects camera actions, and registers Vite HMR cleanup for both.
+- `src/ui.ts` owns DOM controls and Help disclosure; `src/scene.ts` owns the renderer, camera, lighting, resize observer, and animation loop. `src/controls.ts` owns OrbitControls, focus-scoped keyboard input, and reduced-motion handling.
 - `src/parts.ts` builds the phone assembly and owns its geometry/material disposal. `createPhone()` returns `{ assembly, dispose }`.
 - `src/layout.ts` snapshots each part's local matrix into `part.userData.layouts.exploded` and `.knolled`. Both are currently identical placeholders.
-- `createViewer()` returns a cleanup function that stops rendering, disconnects resizing, disposes controls and phone resources, and removes the canvas. Preserve this lifecycle when adding resources.
+- `createViewer()` returns camera actions (`zoomIn`, `zoomOut`, `resetView`) and `dispose()`. `createUI()` returns the viewport container, `connect(actions)`, and `dispose()`. Preserve both cleanup paths when adding resources or listeners.
 - `playwright.config.ts` runs Chromium tests and starts Vite at `http://127.0.0.1:5173` with a strict port. An existing server is reused outside CI; traces are retained on failure.
 
 ## Conventions
