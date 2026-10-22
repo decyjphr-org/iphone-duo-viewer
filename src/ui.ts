@@ -1,4 +1,6 @@
 import type { ViewerActions } from './scene';
+import { dimensions } from './model';
+import { openIPhoneDuo, innerDisplayDiagonalInches, coverDisplayDiagonalInches } from './specs';
 
 function createButton(label: string, text = label): HTMLButtonElement {
   const button = document.createElement('button');
@@ -16,7 +18,7 @@ export function createUI(root: HTMLElement) {
   title.textContent = 'iPhone Duo';
   const viewStatus = document.createElement('p');
   viewStatus.className = 'view-status';
-  viewStatus.textContent = 'Closed view';
+  viewStatus.textContent = 'Exploded view';
   viewStatus.setAttribute('role', 'status');
   viewStatus.setAttribute('aria-live', 'polite');
   header.append(title, viewStatus);
@@ -94,44 +96,102 @@ export function createUI(root: HTMLElement) {
   const knollingControl = document.createElement('div');
   knollingControl.className = 'knolling-control';
   const knolling = createButton('Knolling');
-  knolling.disabled = true;
   knolling.setAttribute('aria-pressed', 'false');
-  knolling.setAttribute('aria-describedby', 'knolling-availability');
-  const availability = document.createElement('small');
-  availability.id = 'knolling-availability';
-  availability.setAttribute('role', 'note');
-  availability.textContent = 'Coming soon';
-  knollingControl.append(knolling, availability);
+  const assembled = createButton('Assembled');
+  const exploded = createButton('Exploded');
+  assembled.setAttribute('aria-pressed', 'false');
+  exploded.setAttribute('aria-pressed', 'true');
+  knollingControl.setAttribute('role', 'group');
+  knollingControl.setAttribute('aria-label', 'Layout mode');
+  knollingControl.append(assembled, exploded, knolling);
   const foldButton = createButton('Open phone');
   foldButton.setAttribute('aria-pressed', 'false');
+  foldButton.setAttribute('aria-describedby', 'fold-availability');
+  const availability = document.createElement('small');
+  availability.id = 'fold-availability';
+  availability.textContent = 'Folding is available only in Assembled.';
+  const durationRow = document.createElement('div');
+  durationRow.className = 'duration-control';
+  const durationLabel = document.createElement('label');
+  durationLabel.htmlFor = 'transition-duration';
+  durationLabel.textContent = 'Transition duration (ms)';
+  const duration = document.createElement('input');
+  duration.id = 'transition-duration';
+  duration.type = 'range'; duration.min = '0'; duration.max = '2000';
+  duration.step = '1'; duration.value = '600';
+  const durationValue = document.createElement('span');
+  durationValue.className = 'duration-value';
+  // The slider already exposes these units via aria-valuetext. Avoid another
+  // implicit live region (HTML output has role=status).
+  durationValue.setAttribute('aria-hidden', 'true');
+  durationValue.textContent = '600 ms';
+  duration.setAttribute('aria-valuetext', '600 ms');
+  durationRow.append(durationLabel, duration, durationValue);
   const schematic = document.createElement('p');
   schematic.className = 'interaction-hint';
-  schematic.textContent = 'Schematic book fold — not verified hardware geometry.';
+  schematic.setAttribute('role', 'note');
+  schematic.setAttribute('aria-label', 'Model accuracy');
+  schematic.textContent = 'Illustrative 25-module model — not a teardown or full BOM. '
+    + `Closed: ${dimensions.width} × ${dimensions.height} × ${dimensions.depth} mm. `
+    + `Open: ${openIPhoneDuo.width} × ${openIPhoneDuo.height} × ${openIPhoneDuo.depth} mm. `
+    + `Continuous ${innerDisplayDiagonalInches}-inch inner / ${coverDisplayDiagonalInches}-inch cover display. `
+    + 'Internal shapes and finite-radius sliding display attachment are illustrative, not verified hardware mechanics.';
 
-  panel.append(cameraActions, hint, help, foldButton, schematic, knollingControl);
+  panel.append(knollingControl, durationRow, cameraActions, hint, help, foldButton, availability, schematic);
   main.append(viewer, panel);
   root.append(header, main);
 
-  let unsubscribeFold: (() => void) | undefined;
+  let unsubscribe: (() => void) | undefined;
+  let connection: AbortController | undefined;
   return {
     viewer,
     connect(actions: ViewerActions) {
-      zoomIn.addEventListener('click', actions.zoomIn, { signal });
-      zoomOut.addEventListener('click', actions.zoomOut, { signal });
-      resetView.addEventListener('click', actions.resetView, { signal });
-      foldButton.addEventListener('click', actions.toggleFold, { signal });
-      unsubscribeFold?.();
-      unsubscribeFold = actions.subscribeFold(({ state, requestedOpen }) => {
+      connection?.abort();
+      connection = new AbortController();
+      const connected = { signal: connection.signal };
+      zoomIn.addEventListener('click', actions.zoomIn, connected);
+      zoomOut.addEventListener('click', actions.zoomOut, connected);
+      resetView.addEventListener('click', actions.resetView, connected);
+      foldButton.addEventListener('click', actions.toggleFold, connected);
+      assembled.addEventListener('click', () => actions.setMode('assembled'), connected);
+      exploded.addEventListener('click', () => actions.setMode('exploded'), connected);
+      knolling.addEventListener('click', actions.toggleKnolling, connected);
+      duration.addEventListener('input', () => actions.setDuration(duration.valueAsNumber), connected);
+      unsubscribe?.();
+      unsubscribe = actions.subscribe(({ target, settled, transitioning, requestedOpen, fold, duration: ms, error, cameraBusy }) => {
         foldButton.setAttribute('aria-pressed', String(requestedOpen));
-        viewStatus.textContent = {
-          closed: 'Closed view', opening: 'Opening phone…',
-          open: 'Open view', closing: 'Closing phone…',
-        }[state];
+        foldButton.disabled = target !== 'assembled';
+        assembled.setAttribute('aria-pressed', String(target === 'assembled'));
+        exploded.setAttribute('aria-pressed', String(target === 'exploded'));
+        knolling.setAttribute('aria-pressed', String(target === 'knolled'));
+        for (const button of [zoomIn, zoomOut, resetView]) {
+          button.disabled = cameraBusy;
+        }
+        duration.value = String(ms);
+        durationValue.textContent = `${ms} ms`;
+        duration.setAttribute('aria-valuetext', `${ms} ms`);
+        const labels = { assembled: 'Assembled', exploded: 'Exploded', knolled: 'Knolling' };
+        viewStatus.textContent = (transitioning
+          ? `Transitioning to ${labels[target]}${target === 'assembled' ? ` (${fold})` : ''}; last settled: ${labels[settled]}.`
+          : `${labels[settled]} view${target === 'assembled' ? ` — ${fold}` : ''}.`)
+          + (cameraBusy ? ' Camera controls paused during handoff; restored on completion.' : ' Camera controls available.')
+          + (error ? ` ${error}` : '');
+        const grid = target === 'knolled';
+        pointerHint.textContent = grid
+          ? 'Drag to pan / Scroll to zoom / Rotation locked in Knolling'
+          : 'Drag to rotate / Scroll to zoom / Right-drag to pan';
+        touchHint.textContent = grid
+          ? 'Drag to pan / Pinch to zoom / Rotation locked in Knolling'
+          : 'Drag to rotate / Pinch to zoom / Two-finger drag to pan';
+        keyboardHelp.textContent = grid
+          ? 'Focus the viewer: Arrow keys pan; + / - zoom; Home resets. Rotation is locked in Knolling.'
+          : 'Focus the viewer: Arrow keys rotate; Shift + Arrow keys pan; + / - zoom; Home resets.';
       });
     },
     dispose() {
       listeners.abort();
-      unsubscribeFold?.();
+      connection?.abort();
+      unsubscribe?.();
     },
   };
 }

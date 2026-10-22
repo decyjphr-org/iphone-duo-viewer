@@ -1,131 +1,175 @@
-# iPhone Duo viewer
+# iPhone Duo illustrative viewer
 
-An interactive 3D prototype built with TypeScript, Vite, and three.js, without a UI
-framework. Inspect a schematic two-panel book fold, with a closed envelope of
-**84.1 x 117.8 x 11.3 mm**. Each panel is 84.1 x 117.8 x 5.65 mm.
-This is illustrative geometry, not verified hardware or a detailed hinge model.
+A local TypeScript / Vite / three.js viewer with **Assembled**, **Exploded**
+(initial), and **Knolling** modes. No UI framework, runtime downloads, external
+assets, new dependencies, or saved user settings.
 
-The viewer supports orbit, pan, zoom, and reset through pointer, touch, and
-keyboard controls. Exploded and knolling views are not implemented yet; the
-Knolling button is disabled and marked "Coming soon".
-The **Open phone** toggle swings the front panel left through 180° around a
-vertical left-edge hinge while the rear stays fixed. Click again during motion
-to reverse from the displayed angle. The button's pressed state indicates the
-requested open target; the live status reports opening, closing, or the endpoint.
+## Accuracy boundary
 
-## Getting started
+This is a recognizable exterior with **25 authored major-component modules**,
+**not a teardown, repair sequence, verified hinge, or full hardware BOM**.
+Decorative geometry is merged into the corresponding named module. Internals,
+relative dimensions, placement, and motion are
+illustrative. The registry in `src/model.ts` records their authored provenance
+and proportional dimensions; `src/specs.ts` supplies both endpoint envelopes
+and display diagonals.
 
-Use a supported Node.js release compatible with Vite 8, such as Node.js 22.12 or
-newer, npm, and a browser with WebGL 2 support.
+The assembled closed envelope is **84.1 × 117.8 × 11.3 mm**; open is
+**164.6 × 117.8 × 5.2 mm**. The continuous inner display's nominal active
+rectangle is **7.6 inches** diagonally; the cover display's is **5.4 inches**.
+Diagonals refer to bounding rectangles, not rounded-corner contours.
+Do not infer hardware accuracy from matching these dimensions.
+
+The inner display is one persistent, connected skinned sheet, flat when open
+and bent through a finite-radius arc when closed. The 82.3 mm panels have a
+0.9 mm closed gap. The illustrative sheet is 0.09 mm thick, with a 0.495 mm
+neutral bend radius and a reserved maximum arc length of about 1.555 mm.
+Each half slides by half the arc length during folding; thickness-deep
+recesses seat the sheet outside the body gap. U-shaped rims leave the
+hinge-facing edge open and clear both active display rectangles. This is
+**schematic sliding attachment, not verified hardware mechanics**.
+
+The planning research used Apple's iPhone Duo specifications, Wikipedia, Phone
+Repair Guru, Wccftech, and AppleHeadlines for external-envelope/context evidence
+only (retrieved October 22, 2026 UTC). None supplied verified internal geometry
+or a complete BOM. No external geometry, images, or textures are bundled.
+Sample reference PNGs were unavailable for comparison; no reference-image match
+is claimed.
+
+### Fixed inventory
+
+| Assembly | Named modules |
+| --- | --- |
+| Rear (12) | `rear-frame`, `rear-cover`, `inner-display`, `rear-display-support`, `rear-battery`, `logic-board`, `rear-camera-wide`, `rear-camera-ultrawide`, `rear-speaker`, `charging-port-module`, `power-button`, `volume-rocker` |
+| Front (10) | `front-frame`, `cover-display`, `front-display-support`, `front-battery`, `front-interconnect-board`, `front-camera`, `front-speaker`, `haptic-module`, `wireless-charge-coil`, `side-button` |
+| Hinge (3) | `hinge-spine`, `front-hinge-bracket`, `rear-hinge-bracket` |
+
+## Run
+
+Use Node.js compatible with Vite 8 (for example 22.12+) and a WebGL 2 browser.
+With dependencies already present:
 
 ```sh
-npm install
 npm run dev
-```
-
-Open the local URL printed by Vite. The header identifies the current layout as
-"Closed view"; the bottom toolbar provides Zoom out, Zoom in, Reset view, and Help.
-
-## Controls
-
-| Action | Mouse / trackpad | Touch | Keyboard |
-| --- | --- | --- | --- |
-| Rotate | Drag | One-finger drag | Arrow keys |
-| Pan | Right-drag | Two-finger drag | Shift + Arrow keys |
-| Zoom | Scroll or use the toolbar | Pinch or use the toolbar | `+` / `-` |
-| Reset camera | Reset view button | Reset view button | Home |
-| Open / close phone | Open phone toggle | Open phone toggle | Tab to toggle, then Space / Enter |
-
-Tab to the viewer to use camera shortcuts; they apply only while the canvas is
-focused. The toolbar buttons are also keyboard-accessible. Open Help for shortcut
-instructions, and press Escape while focused in the controls to close it.
-
-Hints adapt to the primary pointer type. Camera buttons have at least 44 px touch
-targets, and reduced-motion preferences disable orbit inertia and make folding
-instant, including when the preference changes during a fold.
-
-Reset view affects only the camera, not the fold. Default/reset framing encloses
-the full sweep even on narrow screens, so the closed phone appears smaller.
-Resizing refits an untouched home view; otherwise it preserves the current
-orbit/pan and updates the saved reset pose for the new aspect ratio.
-
-## Build
-
-```sh
 npm run build
-```
-
-This type-checks `src/` with `tsc --noEmit`, then creates the production bundle in
-`dist/`.
-
-## Tests
-
-Install the Playwright Chromium browser once, then run the browser tests:
-
-```sh
-npx playwright install chromium
 npm test
 ```
 
-Run one spec or select the initial visibility test:
+For a fresh checkout, install with `npm install`, and, if needed,
+`npx playwright install chromium` before testing. These are setup steps, not
+runtime network requirements. Build type-checks `src/` with `tsc --noEmit` and
+emits a Vite production bundle in `dist/`.
 
-```sh
-npm test -- tests/viewer.spec.ts
-npm test -- tests/viewer.spec.ts --grep "shows the Knolling button and the viewer canvas"
-```
+## Modes and controls
 
-Playwright starts Vite at `http://127.0.0.1:5173` with a strict port. Outside CI it
-can reuse an existing server at that address; in CI it starts its own. Traces are
-retained for failed tests.
+- **Exploded** is deterministic and fully open. Layer separation is illustrative.
+- **Assembled** alone enables **Open phone**. The requested fold endpoint is
+  remembered, initially closed, when leaving/re-entering Assembled. The hinge
+  sweeps through 180°; folding can be reversed from the displayed pose.
+- **Knolling** arranges all 25 modules exactly once in a six-column, five-row
+  grid. Cells use actual oriented geometry bounds (including off-center detail),
+  centered on cell axes, with a positive specs-derived gap. Every broad face
+  faces the straight-on +Z view, including the spine's authored Y rotation.
+  The single flat inner display occupies one larger cell. Toggle it off to
+  return to **Exploded**, not Assembled.
+- The pressed mode reports the **target**. One polite status reports target,
+  last settled mode, fold state, camera availability, and duration errors.
+- **Transition duration (ms)** is a native slider, 0–2000 inclusive, default
+  600. Every new request/reversal uses that full duration, including camera
+  handoff. Edits affect the next request, never active playback. Zero is instant.
+  Preferences/settings last only until reload.
+- Initial and live reduced motion snap the entire transition, model and camera,
+  to its target and disable control damping.
 
-Tests exercise the disabled Knolling placeholder, canvas visibility, camera
-controls, keyboard interaction, Help disclosure, and mobile hints and touch-target
-sizes. Fold tests verify geometry and matrix snapshots numerically, endpoints,
-reversal, live reduced motion, all corner projections over the sweep at desktop
-and mobile aspects, exact camera reset with pending damping, and cleanup.
+| Action | Assembled / Exploded | Knolling |
+| --- | --- | --- |
+| Projection | Perspective | Straight-on orthographic, +Y up |
+| Mouse drag / one-finger drag | Orbit | Pan; rotation locked |
+| Right-drag / two-finger drag | Pan | Pan |
+| Wheel / pinch / `+` / `-` / camera buttons | Zoom | Zoom |
+| Focused arrow keys | Orbit | Pan |
+| Shift + arrows | Pan | Pan |
+| Home / Reset view | Camera-only sweep/layout home | Camera-only grid home |
 
-## How the viewer fits together
+Only the focused canvas receives shortcuts. Help adapts to mode and coarse
+pointers; Escape closes Help. Controls have 44 px touch targets and safe-area
+spacing. Model and camera share a transition clock. During a mode-camera handoff,
+camera input is temporarily suspended with visible accessible status; mode,
+fold, and duration inputs remain available. Focus is retained and camera input
+automatically resumes at completion, interruption, or reduced-motion snapping.
 
-`src/main.ts` creates the DOM UI and viewer, connects camera actions, and registers
-cleanup for Vite hot reload.
+Perspective orbit/pan/zoom remain enabled in **both** Assembled and Exploded.
+Entering Knolling caches the Exploded viewpoint. Exiting restores it with
+aspect adjustment. Projection handoffs match image scale at the target plane.
+Resize guards zero-size containers, updates aspect and reset framing, and
+preserves a user-chosen orbit/pan/relative zoom. Home framing encloses the
+assembled hinge sweep, so the closed model is intentionally smaller than the
+open model; zoom in to inspect exterior details.
+
+## Implementation and lifecycle
 
 | Module | Responsibility |
 | --- | --- |
-| `src/scene.ts` | Renderer, camera, lighting, container resizing, and the render loop |
-| `src/controls.ts` | OrbitControls, zoom/reset actions, focus-scoped keyboard input, and reduced-motion handling |
-| `src/ui.ts` | Live fold status/toggle, schematic explanation, camera toolbar, hints, Help, and disabled Knolling |
-| `src/parts.ts` | Phone assembly, component geometry/materials, and their disposal |
-| `src/layout.ts` | Stored local transform matrices for exploded and knolled layouts |
-| `src/fold.ts` | Reversible elapsed-time hinge playback and discrete state subscriptions |
-| `src/framing.ts` | Aspect-aware camera home enclosing the full swept bounds |
-| `src/specs.ts` | Physical dimensions in millimeters |
+| `src/model.ts` | Authored inventory, endpoint-derived panel/display dimensions, modes, ratio/provenance metadata |
+| `src/parts.ts` | Rounded frames/cavities, inset screens, lens/button/port details; persistent assembly hierarchy; shared resource caches |
+| `src/layout.ts` | Parent-aware immutable local assembled/exploded/knolled matrix snapshots, measured grid/bounds, pose helpers |
+| `src/fold.ts` | Fold quaternion target and connected finite-radius skinned-sheet articulation, no independent clock |
+| `src/transition.ts` | Sole part/hinge/articulation writer; elapsed smoothstep position/scale and quaternion playback; subscriptions and duration validation |
+| `src/framing.ts` | Sole camera coordinator; actual layout/sweep framing, clearance path, projection/resize/return/clip policy |
+| `src/controls.ts` | One OrbitControls instance, active-camera mappings, focus-scoped keys and live motion preference |
+| `src/scene.ts` | Renderer, lights, observer, one RAF: transition → controls → clipping → render |
+| `src/ui.ts` | Modes, duration, fold restriction, composed status, disclosure, camera toolbar and Help |
+| `src/main.ts` | Connect UI/viewer, accessible initialization error, HMR teardown |
+| `src/specs.ts` | Protected endpoint dimensions and display diagonals |
 
-The scene calls `createPhone()` and renders its assembly. Parts snapshot their
-local transforms through `storePartLayouts()`. The two layout snapshots are
-independent clones but currently identical placeholders; folding never overwrites
-them. A fixed rear mesh and a front mesh under a persistent hinge group share one
-geometry/material pair, disposed once by the parts module. The single render loop
-updates fold playback, then camera controls, then renders. Full-range folding uses
-600 ms smoothstep easing; reversal duration scales with remaining angular distance.
+`createPhone()` returns `{ assembly, hinge, parts, layouts, flexible, dispose }`. Rear,
+front, and hinge modules stay under persistent assembly groups; the front
+assembly stays under `book-hinge`. Knoll targets convert canonical world poses
+through inverse parent matrices rather than reparenting.
 
-Each physical component has a named mesh within an assembly group. Model resources
-are disposed by the parts module, while the viewer disposes rendering and camera
-resources. UI listeners have a separate cleanup path.
-The UI unsubscribes from fold status on cleanup; viewer disposal cancels its RAF,
-disconnects resizing and motion listeners, clears fold subscribers, and releases
-resources. No persistence or migration is involved. To roll back this feature,
-restore the original single-body model and camera-only UI/viewer interface
-together; no stored user data needs conversion.
+`createViewer()` returns `ViewerActions` (`zoomIn`, `zoomOut`, `resetView`,
+`setMode`, `toggleKnolling`, `toggleFold`, `setDuration`, `subscribe`) plus
+`dispose()`. `subscribe(listener)` immediately supplies `ViewStatus` and returns
+an unsubscribe function. Status includes `target`, `settled`, `transitioning`,
+`requestedOpen`, `fold`, `duration`, `error`, and `cameraBusy`.
+`setDuration` rejects nonfinite/out-of-range values with status error and retains
+the last valid setting; `setMode` rejects unknown mode names.
 
-## Playwright MCP
+Targets/decompositions are cached outside playback. Interruptions capture
+displayed poses; exact endpoints are assigned without overwriting snapshots.
+The camera suspends OrbitControls damping while it owns playback. No extra RAF
+or interval is used. UI disposal aborts listeners and unsubscribes; reconnect
+replaces prior action listeners. Viewer disposal cancels RAF, disconnects resize
+and preference listeners, disposes controls/controller/renderer, and removes the
+canvas. The display skeleton and each unique shared geometry/material are disposed exactly once; mode
+switching never allocates a replacement model. HMR tears down both lifecycles.
 
-`.github/mcp.json` configures Playwright MCP for Copilot CLI in this repository.
-It runs locally through `npx` with a headless browser and an isolated profile.
-Start a new Copilot CLI session in this trusted repository to load it, then use
-`/mcp` to check its status. Run `npm run dev` before asking Copilot to inspect the
-viewer. MCP is optional and is not needed to run the app or its tests.
+## Validation
+
+```sh
+npm test -- tests/viewer.spec.ts
+npm test -- tests/fold.spec.ts
+npm test -- tests/layout.spec.ts
+python3 .github/hooks/test_guard.py
+git --no-pager diff --check
+```
+
+Playwright starts strict-port Vite at `http://127.0.0.1:5173`, reuses an existing
+server outside CI, and retains failure traces. Tests cover exact inventory,
+positive-gap projected AABBs, alignment, parent-aware independent snapshots,
+actual skinned-vertex endpoint bounds and diagonals, connected sheet topology,
+finite-radius body-following articulation and frame clearance, elapsed
+timing/reversal, duration validation, motion preferences,
+camera scale/pose/interaction, frustum sampling of actual geometry at desktop,
+mobile and landscape sizes, accessibility, and cleanup.
+
+Numeric checks are not visual approval. Chromium desktop/mobile emulation is
+not testing on physical devices; human visual approval remains a separate step.
+Screenshots do not establish hardware accuracy.
 
 ## Repository guidance
 
-See [AGENTS.md](AGENTS.md) for links to the repository instructions and focused
-guides for three.js work, layout transitions, and Playwright tests.
+See [AGENTS.md](AGENTS.md) for scoped instructions. `.github/mcp.json` optionally
+configures local Playwright MCP; start Vite before inspecting the viewer.
+No persistence migration is needed to roll back: restore coherent viewer,
+test, and documentation changes together, preserving unrelated hook work.

@@ -1,267 +1,224 @@
 import { expect, test } from '@playwright/test';
 
-test.describe('schematic book fold', () => {
-  test('reverses while opening, keeps camera actions available, and announces endpoints', async ({ page }) => {
+test.describe('P8 coordinated transitions', () => {
+  test('remembers assembled folding, reports target vs settled, and toggles Knolling off to Exploded', async ({ page }) => {
     await page.goto('/');
-    const button = page.getByRole('button', { name: 'Open phone', exact: true });
     const status = page.getByRole('status');
-    await expect(button).toBeVisible();
-    await expect(page.getByText('Schematic book fold — not verified hardware geometry.')).toBeVisible();
-    await page.clock.install({ time: new Date('2030-01-01T00:00:00Z') });
-    await page.clock.pauseAt(new Date('2030-01-01T00:00:01Z'));
-    await button.click();
-    await expect(status).toHaveText('Opening phone…');
-    await expect(button).toHaveAttribute('aria-pressed', 'true');
-    await expect(button).toBeEnabled();
+    const open = page.getByRole('button', { name: 'Open phone', exact: true });
+    const duration = page.getByRole('slider', { name: 'Transition duration (ms)' });
+    await expect(duration).toBeVisible();
+    await expect(duration).toHaveAttribute('aria-valuetext', '600 ms');
+    await page.clock.install();
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
+    await page.getByRole('button', { name: 'Assembled', exact: true }).click();
+    await expect(status).toContainText('Transitioning to Assembled (closing); last settled: Exploded.');
+    await expect(status).toContainText('Camera controls paused');
+    await expect(page.getByRole('button', { name: 'Zoom in' })).toBeDisabled();
+    await page.clock.runFor(650);
+    await expect(status).toHaveText('Assembled view — closed. Camera controls available.');
+    await open.click();
     await page.clock.runFor(250);
-    await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
-    await button.click();
-    await expect(status).toHaveText('Closing phone…');
-    await expect(button).toHaveAttribute('aria-pressed', 'false');
+    await open.click();
+    await expect(open).toHaveAttribute('aria-pressed', 'false');
+    await expect(status).toContainText('closing');
+    await expect(page.getByRole('button', { name: 'Zoom in' })).toBeEnabled();
     await page.clock.runFor(650);
-    await expect(status).toHaveText('Closed view');
-    await button.click();
+    await expect(status).toContainText('Assembled view — closed.');
+    await open.click();
     await page.clock.runFor(650);
-    await expect(status).toHaveText('Open view');
-    await expect(page.getByRole('img', { name: '3D view of the open schematic iPhone Duo' })).toBeVisible();
+    await expect(status).toContainText('Assembled view — open.');
+    await page.getByRole('button', { name: 'Knolling', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Knolling' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(open).toBeDisabled();
+    await page.clock.runFor(650);
+    await expect(status).toContainText('Knolling view.');
+    await page.getByRole('button', { name: 'Knolling' }).click();
+    await expect(page.getByRole('button', { name: 'Exploded', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await page.clock.runFor(650);
+    await expect(status).toContainText('Exploded view.');
+    await page.getByRole('button', { name: 'Assembled', exact: true }).click();
+    await page.clock.runFor(650);
+    await expect(status).toContainText('Assembled view — open.');
     await page.getByRole('button', { name: 'Reset view' }).click();
-    await expect(status).toHaveText('Open view');
-    await expect(page.getByRole('button', { name: 'Knolling' })).toBeDisabled();
+    await expect(status).toContainText('Assembled view — open.');
   });
 
-  test('honors initial and live reduced-motion preferences', async ({ page }) => {
+  test('honors initial and live reduced motion for the entire model and camera', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
-    const button = page.getByRole('button', { name: 'Open phone', exact: true });
-    await button.click();
-    await expect(page.getByRole('status')).toHaveText('Open view');
-    await button.click();
-    await expect(page.getByRole('status')).toHaveText('Closed view');
+    await page.getByRole('button', { name: 'Knolling' }).click();
+    await expect(page.getByRole('status')).toHaveText('Knolling view. Camera controls available.');
+    await page.getByRole('button', { name: 'Assembled', exact: true }).click();
+    await expect(page.getByRole('status')).toContainText('Assembled view — closed.');
     await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await page.clock.install({ time: new Date('2030-01-01T00:00:00Z') });
-    await page.clock.pauseAt(new Date('2030-01-01T00:00:01Z'));
-    await button.click();
-    await expect(page.getByRole('status')).toHaveText('Opening phone…');
+    await page.clock.install();
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
+    await page.getByRole('button', { name: 'Knolling' }).click();
+    await expect(page.getByRole('status')).toContainText('Transitioning to Knolling');
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await expect(page.getByRole('status')).toHaveText('Open view');
+    await expect(page.getByRole('status')).toHaveText('Knolling view. Camera controls available.');
+    await expect(page.getByRole('button', { name: 'Zoom in' })).toBeEnabled();
   });
 
-  test('has exact geometry endpoints, continuous time-based reversal, immutable snapshots, and shared disposal', async ({ page }) => {
+  test('uses full selected elapsed duration, captures interruptions, validates input, snaps exactly and stops after disposal', async ({ page }) => {
     await page.goto('/');
     const result = await page.evaluate(async () => {
       const load = (path: string) => import(path);
       const { createPhone } = await load('/src/parts.ts');
-      const { createFoldController } = await load('/src/fold.ts');
-      const { closedIPhoneDuo: specs } = await load('/src/specs.ts');
-      const { Box3, Vector3 } = await load('/node_modules/three/build/three.module.js');
+      const { createTransitionController } = await load('/src/transition.ts');
+      const { partLayouts } = await load('/src/layout.ts');
+      let now = 0;
       const phone = createPhone();
-      const front = phone.assembly.getObjectByName('front-panel');
-      const rear = phone.assembly.getObjectByName('rear-panel');
-      const saved = front.userData.layouts.exploded.elements.slice();
-      const independent = front.userData.layouts.exploded !== front.userData.layouts.knolled
-        && front.userData.layouts.exploded !== front.matrix;
-      const closed = new Box3().setFromObject(phone.assembly);
-      const fold = createFoldController(phone.hinge);
-      let state = '';
-      fold.subscribeFold((value: { state: string }) => { state = value.state; });
-      fold.toggleFold();
-      const now = performance.now();
-      fold.update(now + 300);
-      const halfway = phone.hinge.rotation.y;
-      fold.toggleFold();
-      const reversalStart = phone.hinge.rotation.y;
-      fold.update(performance.now() + 150);
-      const reversing = phone.hinge.rotation.y;
-      fold.update(performance.now() + 601);
-      const closedAngle = phone.hinge.rotation.y;
-      fold.toggleFold();
-      fold.update(performance.now() + 601);
+      let cameraProgress = 0; let cameraFinishes = 0; let cameraDuration = -1;
+      const controller = createTransitionController(phone, {
+        request(_mode: string, ms: number) { cameraDuration = ms; },
+        update(p: number) { cameraProgress = p; },
+        finish() { cameraFinishes++; cameraProgress = 1; },
+      }, () => now);
+      let status: any;
+      controller.subscribe((value: any) => { status = value; });
+      const saved = phone.parts.map((p: any) => Object.values(partLayouts(p)).map((m: any) => m.elements.slice()));
+      const pose = () => [phone.flexible.angle, ...phone.flexible.skeleton.bones.flatMap((bone: any) =>
+        [...bone.position.toArray(), ...bone.quaternion.toArray()]), ...phone.hinge.quaternion.toArray(), ...phone.parts.flatMap((p: any) =>
+        [...p.position.toArray(), ...p.quaternion.toArray()])];
+      const error = (a: number[], b: number[]) => Math.max(...a.map((v, i) => Math.abs(v - b[i])));
+      controller.setMode('assembled'); controller.update(300);
+      const halfway = pose();
+      now = 300; controller.setMode('knolled');
+      const noJump = error(halfway, pose());
+      controller.update(600); const middleCamera = cameraProgress;
+      controller.setDuration(2000);
+      controller.update(899); const notEarly = status.transitioning;
+      controller.update(900); const oldDurationFinished = !status.transitioning;
+      now = 900; controller.setMode('exploded');
+      controller.update(2899); const full2000 = status.transitioning;
+      controller.update(2900); const ended2000 = !status.transitioning;
+      controller.setDuration(600);
+      now = 3000; controller.setMode('assembled'); controller.update(3200);
+      now = 3200; controller.toggleFold();
+      const reversal = pose();
+      controller.update(3799); const reversalFullDuration = status.transitioning;
+      controller.update(3800); const reversalFinished = !status.transitioning;
+      const openQuaternion = phone.hinge.quaternion.toArray();
+      controller.setDuration(0); controller.setMode('knolled');
       phone.assembly.updateMatrixWorld(true);
-      const openCenter = front.getWorldPosition(new Vector3()).toArray();
-      const openAngle = phone.hinge.rotation.y;
-      const frontBounds = new Box3().setFromObject(front);
-      const rearBounds = new Box3().setFromObject(rear);
-      const unchanged = saved.every((v: number, i: number) =>
-        v === front.userData.layouts.exploded.elements[i]
-        && v === front.userData.layouts.knolled.elements[i]);
-      let geometryDisposals = 0;
-      let materialDisposals = 0;
-      front.geometry.addEventListener('dispose', () => geometryDisposals++);
-      front.material.addEventListener('dispose', () => materialDisposals++);
-      fold.dispose();
-      fold.toggleFold();
-      fold.update(performance.now() + 1000);
-      const stopped = phone.hinge.rotation.y === openAngle && state === 'open';
-      const shared = front.geometry === rear.geometry && front.material === rear.material;
+      const instant = !status.transitioning && cameraDuration === 0 && cameraProgress === 1;
+      const exact = phone.parts.every((p: any) => {
+        p.updateMatrix();
+        return error(p.matrix.elements, partLayouts(p).knolled.elements) < 1e-10;
+      });
+      controller.setDuration(600);
+      const errors = [NaN, Infinity, -1, 2001].map(value => {
+        controller.setDuration(value); return status.duration === 600 && status.error.includes('0 to 2000');
+      });
+      controller.setDuration(2000); now = 4000; controller.setMode('assembled');
+      controller.update(4100); controller.setReducedMotion(true);
+      const liveSnap = !status.transitioning && cameraProgress === 1;
+      const immutable = phone.parts.every((p: any, i: number) => Object.values(partLayouts(p))
+        .every((m: any, j: number) => error(m.elements, saved[i][j]) === 0));
+      const before = pose();
+      controller.dispose(); controller.setMode('knolled'); controller.toggleFold(); controller.update(99999);
+      const disposed = error(before, pose()) === 0;
       phone.dispose();
-      return {
-        specs, independent, unchanged, closed: closed.getSize(new Vector3()).toArray(),
-        halfway, reversalStart, reversing, closedAngle, openAngle, openCenter,
-        separated: frontBounds.max.x <= rearBounds.min.x + 1e-10,
-        shared, geometryDisposals, materialDisposals, stopped,
+      // Identical elapsed timestamp, different frame cadence, identical displayed poses.
+      const sample = (steps: number[]) => {
+        const other = createPhone();
+        const c = createTransitionController(other, undefined, () => 0);
+        c.setMode('knolled');
+        steps.forEach(t => c.update(t));
+        const out = [other.flexible.angle, ...other.flexible.skeleton.bones.flatMap((bone: any) =>
+          [...bone.position.toArray(), ...bone.quaternion.toArray()]),
+          ...other.parts.flatMap((p: any) => [...p.position.toArray(), ...p.quaternion.toArray()])];
+        c.dispose(); other.dispose(); return out;
       };
+      return { noJump, middleCamera, notEarly, oldDurationFinished, full2000, ended2000,
+        reversalFullDuration, reversalFinished, openQuaternion, instant, exact, errors, liveSnap,
+        immutable, disposed, reversalMoved: error(reversal, before) > 0,
+        cadenceError: error(sample([300]), sample([16, 33, 100, 200, 300])), cameraFinishes };
     });
-    // BoxGeometry stores vertices as Float32; transforms/end angles remain doubles.
-    [result.specs.width, result.specs.height, result.specs.depth].forEach((value, index) => {
-      expect(result.closed[index]).toBeCloseTo(value, 4);
-    });
-    expect(result.halfway).toBeCloseTo(-Math.PI / 2, 1);
-    expect(result.reversalStart).toBe(result.halfway);
-    expect(result.reversing).toBeGreaterThan(result.reversalStart);
-    expect(result.reversing).toBeLessThan(0);
-    expect(result.closedAngle).toBeCloseTo(0, 12);
-    expect(result.openAngle).toBe(-Math.PI);
-    expect(result.openCenter[0]).toBeCloseTo(-result.specs.width, 10);
-    expect(result.openCenter[1]).toBe(0);
-    expect(result.openCenter[2]).toBeCloseTo(-result.specs.depth / 4, 10);
-    for (const key of ['independent', 'unchanged', 'separated', 'shared', 'stopped'] as const) {
+    expect(result.noJump).toBe(0);
+    expect(result.middleCamera).toBe(.5);
+    expect(result.openQuaternion).toEqual([-0, -1, -0, Math.cos(Math.PI / 2)]);
+    expect(result.cadenceError).toBe(0);
+    for (const key of ['notEarly', 'oldDurationFinished', 'full2000', 'ended2000', 'reversalFullDuration',
+      'reversalFinished', 'instant', 'exact', 'liveSnap', 'immutable', 'disposed', 'reversalMoved'] as const) {
       expect(result[key], key).toBe(true);
     }
-    expect(result.geometryDisposals).toBe(1);
-    expect(result.materialDisposals).toBe(1);
+    expect(result.errors).toEqual([true, true, true, true]);
+    expect(result.cameraFinishes).toBeGreaterThan(3);
   });
 
-  for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
-    test(`numerically frames the full sweep and resets pending damping at ${viewport.width}px`, async ({ page }) => {
-      await page.setViewportSize(viewport);
-      await page.goto('/');
-      const canvas = page.getByRole('img', { name: '3D view of the closed iPhone Duo' });
-      await expect(canvas).toBeVisible();
-      const bounds = await canvas.boundingBox();
-      if (!bounds) throw new Error('Missing canvas bounds');
-      const result = await page.evaluate(async ({ width, height }) => {
-        const load = (path: string) => import(path);
-        const { PerspectiveCamera, Vector3 } = await load('/node_modules/three/build/three.module.js');
-        const { getHomeFrame, sweepRadius } = await load('/src/framing.ts');
-        const { createPhone } = await load('/src/parts.ts');
-        const { createCameraControls } = await load('/src/controls.ts');
-        const { closedIPhoneDuo: specs } = await load('/src/specs.ts');
-        const camera = new PerspectiveCamera(40, width / height, specs.height / 100, specs.height * 100);
-        const home = getHomeFrame(camera);
-        const element = document.createElement('canvas');
-        document.body.append(element);
-        const controls = createCameraControls(camera, element, specs.height);
-        controls.setHome(home.position, home.target, home.distance, true);
-        camera.updateMatrixWorld();
-        const pose = [...camera.position.toArray(), ...camera.quaternion.toArray()];
-        const phone = createPhone();
-        let maxProjected = 0;
-        let minDepth = Infinity;
-        let maxDepth = -Infinity;
-        for (let step = 0; step <= 180; step++) {
-          phone.hinge.rotation.y = -Math.PI * step / 180;
-          phone.assembly.updateMatrixWorld(true);
-          for (const name of ['front-panel', 'rear-panel']) {
-            const part = phone.assembly.getObjectByName(name);
-            const positions = part.geometry.attributes.position;
-            for (let i = 0; i < positions.count; i++) {
-              const world = new Vector3().fromBufferAttribute(positions, i).applyMatrix4(part.matrixWorld);
-              const projected = world.clone().project(camera);
-              maxProjected = Math.max(maxProjected, Math.abs(projected.x), Math.abs(projected.y));
-              minDepth = Math.min(minDepth, projected.z);
-              maxDepth = Math.max(maxDepth, projected.z);
-            }
-          }
-        }
-        // Keyboard input leaves orbit and pan damping pending before reset.
-        element.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
-        element.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', shiftKey: true }));
-        controls.zoomIn();
-        controls.update();
-        const moved = camera.position.distanceTo(home.position);
-        controls.resetView();
-        for (let i = 0; i < 10; i++) controls.update();
-        const after = [...camera.position.toArray(), ...camera.quaternion.toArray()];
-        const resetError = Math.max(...after.map((v: number, i: number) => Math.abs(v - pose[i])));
-        element.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
-        controls.update();
-        const resizePose = camera.position.clone();
-        camera.aspect /= 2;
-        const resized = getHomeFrame(camera);
-        controls.setHome(resized.position, resized.target, resized.distance, false);
-        const resizeUnchanged = camera.position.distanceTo(resizePose);
-        controls.resetView();
-        const resizedResetError = camera.position.distanceTo(resized.position);
-        camera.aspect *= 2;
-        const restored = getHomeFrame(camera);
-        controls.setHome(restored.position, restored.target, restored.distance, false);
-        const atHomeResizeError = camera.position.distanceTo(restored.position);
-        controls.dispose();
-        element.remove();
-        phone.dispose();
-        return { maxProjected, minDepth, maxDepth, resetError, moved, resizeUnchanged,
-          resizedResetError, atHomeResizeError, distance: home.distance, sweepRadius };
-      }, bounds);
-      expect(result.maxProjected).toBeLessThan(1);
-      expect(result.minDepth).toBeGreaterThan(-1);
-      expect(result.maxDepth).toBeLessThan(1);
-      expect(result.distance).toBeGreaterThan(result.sweepRadius);
-      expect(result.moved).toBeGreaterThan(1);
-      expect(result.resetError).toBeLessThan(1e-10);
-      expect(result.resizeUnchanged).toBe(0);
-      expect(result.resizedResetError).toBeLessThan(1e-10);
-      expect(result.atHomeResizeError).toBeLessThan(1e-10);
-      await page.getByRole('button', { name: 'Open phone', exact: true }).click();
-      await expect(page.getByRole('status')).toHaveText('Open view');
-      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
-    });
-  }
-
-  test('disposes a transitioning viewer and disconnects UI subscriptions and listeners', async ({ page }) => {
+  test('disposes one RAF, observer, preferences, controls, UI subscriptions and shared resources exactly once', async ({ page }) => {
     await page.goto('/');
     const result = await page.evaluate(async () => {
       const load = (path: string) => import(path);
       const { createUI } = await load('/src/ui.ts');
       const { createViewer } = await load('/src/scene.ts');
-      const root = document.createElement('div');
-      document.body.append(root);
-      const ui = createUI(root);
-      ui.viewer.style.cssText = 'width:390px;height:400px';
-      const request = window.requestAnimationFrame;
-      const cancel = window.cancelAnimationFrame;
-      const frames = new Set<number>();
-      window.requestAnimationFrame = (callback) => {
-        const id = request(callback);
-        frames.add(id);
-        return id;
+      const { createPhone } = await load('/src/parts.ts');
+      const phone = createPhone();
+      const geometries = new Set<any>(phone.parts.map((p: any) => p.geometry));
+      const materials = new Set<any>(phone.parts.flatMap((p: any) => p.material));
+      const counts: number[] = [];
+      let skeletonDisposals = 0;
+      const disposeSkeleton = phone.flexible.skeleton.dispose.bind(phone.flexible.skeleton);
+      phone.flexible.skeleton.dispose = () => { skeletonDisposals++; disposeSkeleton(); };
+      [...geometries, ...materials].forEach((resource, index) => {
+        counts[index] = 0; resource.addEventListener('dispose', () => counts[index]++);
+      });
+      phone.dispose(); phone.dispose();
+      const root = document.createElement('div'); document.body.append(root);
+      const ui = createUI(root); ui.viewer.style.cssText = 'width:390px;height:400px';
+      const request = window.requestAnimationFrame; const cancel = window.cancelAnimationFrame;
+      const Observer = window.ResizeObserver; const media = window.matchMedia;
+      const pending = new Set<number>();
+      let disconnected = 0; let mediaAdds = 0; let mediaRemoves = 0;
+      window.requestAnimationFrame = () => { pending.add(987654); return 987654; };
+      window.cancelAnimationFrame = id => { pending.delete(id); };
+      window.ResizeObserver = class {
+        observe() {} unobserve() {} disconnect() { disconnected++; }
       };
-      window.cancelAnimationFrame = (id) => { frames.delete(id); cancel(id); };
+      window.matchMedia = (query) => {
+        const value = media(query);
+        const add = value.addEventListener.bind(value); const remove = value.removeEventListener.bind(value);
+        value.addEventListener = (...args: any[]) => { mediaAdds++; (add as any)(...args); };
+        value.removeEventListener = (...args: any[]) => { mediaRemoves++; (remove as any)(...args); };
+        return value;
+      };
       const viewer = createViewer(ui.viewer);
-      let notifications = 0;
-      viewer.subscribeFold(() => notifications++);
-      ui.connect(viewer);
-      viewer.toggleFold();
+      let notifications = 0; viewer.subscribe(() => notifications++);
+      ui.connect(viewer); viewer.setMode('knolled');
       const before = notifications;
-      ui.dispose();
-      viewer.dispose();
-      viewer.toggleFold();
-      const remainingFrames = frames.size;
-      window.requestAnimationFrame = request;
-      window.cancelAnimationFrame = cancel;
+      ui.dispose(); viewer.dispose(); viewer.dispose(); viewer.setMode('assembled');
       const canvasRemoved = ui.viewer.childElementCount === 0;
-      // UI disposal independently unsubscribes, even if the viewer remains alive.
-      let unsubscribeCount = 0;
-      let clicks = 0;
+      window.requestAnimationFrame = request; window.cancelAnimationFrame = cancel;
+      window.ResizeObserver = Observer; window.matchMedia = media;
+      let unsubscribeCount = 0; let clicks = 0;
       const other = createUI(root);
       other.connect({
-        zoomIn() { clicks++; }, zoomOut() {}, resetView() {}, toggleFold() {},
-        subscribeFold(listener: (status: { state: string; requestedOpen: boolean }) => void) {
-          listener({ state: 'closed', requestedOpen: false });
+        zoomIn() { clicks++; }, zoomOut() {}, resetView() {}, toggleFold() {}, toggleKnolling() {},
+        setMode() {}, setDuration() {},
+        subscribe(listener: (status: any) => void) {
+          listener({ target: 'exploded', settled: 'exploded', requestedOpen: false,
+            fold: 'closed', duration: 600, error: '', cameraBusy: false, transitioning: false });
           return () => { unsubscribeCount++; };
         },
       });
       other.dispose();
-      const zoom = Array.from(root.getElementsByTagName('button')).filter(
-        (button) => button.getAttribute('aria-label') === 'Zoom in',
-      ).at(-1);
-      zoom?.click();
+      Array.from(root.getElementsByTagName('button')).filter(button => button.getAttribute('aria-label') === 'Zoom in').at(-1)?.click();
       root.remove();
-      return { remainingFrames, canvasRemoved, before, notifications, unsubscribeCount, clicks };
+      return { pending: pending.size, disconnected, mediaAdds, mediaRemoves, before, notifications,
+        canvasRemoved, unsubscribeCount, clicks, counts, skeletonDisposals, geometryCount: geometries.size, materialCount: materials.size };
     });
-    expect(result.remainingFrames).toBe(0);
-    expect(result.canvasRemoved).toBe(true);
+    expect(result.pending).toBe(0);
+    expect(result.disconnected).toBe(1);
+    expect(result.mediaAdds).toBe(1);
+    expect(result.mediaRemoves).toBe(1);
     expect(result.notifications).toBe(result.before);
+    expect(result.canvasRemoved).toBe(true);
     expect(result.unsubscribeCount).toBe(1);
     expect(result.clicks).toBe(0);
+    expect(result.skeletonDisposals).toBe(1);
+    expect(result.geometryCount).toBeLessThan(25);
+    expect(result.counts.every(count => count === 1)).toBe(true);
   });
 });

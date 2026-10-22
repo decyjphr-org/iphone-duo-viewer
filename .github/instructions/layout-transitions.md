@@ -1,87 +1,79 @@
 # Animation and transitions
-**When to read:** Changing stored part layouts, implementing exploded/knolling transitions, or modifying the viewer's animation lifecycle.
 
-## Current implementation
+**Read when:** changing layout snapshots, playback, cameras, or animation cleanup.
 
-- `src/layout.ts` stores layout snapshots; it does not compute distinct target layouts.
-- `src/parts.ts` creates `rear-panel` and `front-panel` meshes, with the front under a persistent `book-hinge` group in the `iphone-duo` assembly.
-- Both saved layouts currently describe the same initial transform.
-- `src/scene.ts` drives `fold.update(timestamp)`, camera controls, and rendering in one RAF loop.
-- `src/controls.ts` owns camera actions, keyboard input, reduced-motion handling, and reset behavior.
-- `src/ui.ts` creates a disabled Knolling button with `aria-pressed="false"` alongside working camera controls.
-- `src/fold.ts` animates only the hinge's Y angle (0 to -PI), not layout matrices: 600 ms full-range smoothstep, distance-scaled reversal from the displayed angle, exact endpoints, and instant reduced-motion completion, including live changes.
-- Fold states are closed/opening/open/closing; subscriptions sync immediately and are cleared on disposal. UI unsubscribes separately. `Open phone` pressed state reflects the requested target; Reset is camera-only.
-- The geometry is schematic, not verified hardware. Exploded/knolled snapshots remain placeholders, not animated targets.
-- Treat the implementation guidance below as requirements for future work, not existing APIs.
+## Current implementation and ownership
 
-## Stored transform contract
+- `model.ts` defines exactly 25 authored modules and `Mode`:
+  `assembled | exploded | knolled`. See README for inventory/accuracy boundaries.
+- `parts.ts` creates persistent rear/front/hinge assembly groups; the front
+  assembly stays under `book-hinge`. Decorative geometry is merged into modules.
+- `layout.ts` computes independent local `assembled`, `exploded`, `knolled`
+  `Matrix4` snapshots once after geometry/parents exist. Targets include bounds
+  of off-center geometry; the grid is six columns with a positive specs-derived
+  gap. Canonical-world targets convert through inverse parent matrices.
+- `fold.ts` provides `foldQuaternion(open)`, not an animation loop or writer.
+- The single `inner-display` SkinnedMesh is a connected finite-thickness sheet.
+  Its material-coordinate columns articulate a finite-radius bend, with
+  schematic sliding attachments. The controller captures the current bend
+  angle on interruption and drives it on the same clock as the hinge.
+  No geometry is rebuilt or layout target recomputed during playback.
+- `transition.ts` is the sole part/hinge transform writer. It captures current
+  local poses, uses cached target decompositions, smoothstep position/scale
+  interpolation and quaternion slerp, then assigns exact endpoints. It never
+  mutates saved matrices. The assembled hinge endpoint is composed separately.
+- `framing.ts` is the sole camera coordinator. It suspends controls/damping during
+  mode handoff, uses a cached clearance path, matches target-plane projection
+  scale, and switches to exact straight-on orthographic only in Knolling. Leaving
+  restores the cached Exploded pose with aspect adjustment. Perspective orbit is
+  retained in both other modes. Reset is camera-only and mode-specific.
+- `scene.ts` owns the single RAF: controller update → controls update → clipping
+  update → render. No controller/UI RAF or intervals.
 
-The current snapshot operation in `src/layout.ts` is:
+## Action and status contract
 
-```ts
-export function storePartLayouts(part: Object3D): void {
-  part.updateMatrix();
-  part.userData.layouts = {
-    exploded: part.matrix.clone(),
-    knolled: part.matrix.clone(),
-  };
-}
-```
+`ViewerActions` combines camera-only `CameraActions` and `TransitionActions`:
+`setMode`, `toggleKnolling`, `toggleFold`, `setDuration`, and `subscribe`.
+`subscribe` immediately emits `ViewStatus` and returns unsubscribe.
+Status fields: `target`, `settled`, `transitioning`, `requestedOpen`, `fold`,
+`duration`, `error`, `cameraBusy`.
 
-- These are local matrices, relative to the part's parent, not world-space targets.
-- `updateMatrix()` captures the part's current position, rotation, and scale.
-- Independent clones prevent changing one target from modifying the other.
-- Keep saved targets immutable during playback; interpolate separate working state.
-- Do not call this helper on every frame or toggle: it would overwrite both targets with the current pose.
-- When distinct layouts are introduced, compute each target once after the part's dimensions and parent are established.
-- Keep targets and interpolation endpoints in the same parent coordinate system.
-- Reparenting or changing assembly transforms requires reviewing how existing targets are interpreted.
-- `userData.layouts` currently has no explicit application-level type; add a narrow type or guard when implementing readers.
+- Initial mode Exploded, fully open; remembered assembled fold initially closed.
+- Only Assembled folds. Other modes must not overwrite the remembered endpoint.
+- Knolling pressed state indicates its target. Toggle off always selects Exploded.
+- Duration is finite 0–2000 ms inclusive, default 600. Invalid input sets an
+  explicit error without changing the last valid value. UI uses a labeled range.
+- Every request/reversal uses the full selected duration, including the camera.
+  Editing duration affects only subsequent requests. Zero is instant.
+- Interruptions capture the displayed part/hinge/camera poses; never jump back
+  to an old start or scale reversal time by remaining distance.
+- Initial/live reduced motion finishes the whole transition, including camera.
+- One composed polite status distinguishes target from settled and explicitly
+  announces temporary camera-input suspension. Preserve focus and restore input.
 
-## Extending the existing loop
+## Invariants for changes
 
-The loop in `src/scene.ts` follows:
+- Snapshots remain immutable and in the object's persistent parent space.
+  Update local matrices before initial cloning. Do not reparent on toggles.
+- Cache targets, decompositions, layout bounds, and clearance outside playback.
+  Reuse working objects; do not recompute layout targets in the render loop.
+- Fit actual geometry and the assembled sweep, guard zero-size containers,
+  preserve user view intent on resize, and maintain near/far and zoom limits.
+- Do not allocate/dispose model geometry merely to change mode.
+- Dispose the sole controller, cancel the latest RAF, disconnect resize/media
+  listeners and controls, abort UI listeners/unsubscribe, and dispose every
+  unique cached geometry/material and the display skeleton once. HMR tears UI and viewer down together.
+- Maintain canvas role/name accessibility and explicit initialization errors.
 
-```ts
-let frame: number;
-function animate(now: number) {
-  fold.update(now);
-  controls.update();
-  renderer.render(scene, camera);
-  frame = requestAnimationFrame(animate);
-}
-frame = requestAnimationFrame(animate);
-```
+## Verification
 
-- Add transition updates before rendering in this loop; do not start another loop from the UI.
-- Keep `controls.update()` before rendering; orbit damping is enabled unless reduced motion is requested.
-- Use elapsed time from animation timestamps rather than frame counts or fixed per-frame increments.
-- Capture each part's current pose and transition start time when a new target is selected.
-- Decompose target matrices into cached position, quaternion, and scale endpoints outside the hot loop.
-- Interpolate position and scale, and use quaternion interpolation for orientation; avoid interpolating matrix entries.
-- Apply easing to normalized, clamped progress and write the exact target pose at completion.
-- Keep automatic local-matrix updates consistent with the position/quaternion/scale changes.
-- Reuse working transform objects instead of allocating them for every part on every frame.
-- If a transition is interrupted, start from the currently displayed pose rather than the previous target.
-
-## Layout and UI boundaries
-
-- Keep target calculations in `src/layout.ts`; parts own physical geometry and the scene owns playback.
-- Read physical dimensions from `src/specs.ts` and express target translations in millimeters.
-- The two schematic panels do not model internal components or a verified hardware hinge.
-- Before wiring the toggle, define what the off state restores: closed, assembled, and exploded are not interchangeable.
-- Camera buttons already connect through the `CameraActions` interface and `createUI().connect(actions)`; extend that boundary deliberately when adding layout actions.
-- Update `aria-pressed` consistently with the chosen toggle semantics once the button becomes functional.
-- Leave the existing placeholder inert unless implementing the feature is part of the task.
-
-## Cleanup and verification
-
-- `createViewer()` returns camera actions and `dispose()`; `src/main.ts` disposes both the UI and viewer during HMR.
-- Keep cancellation tied to the latest scheduled `frame`; do not leave transition callbacks running after disposal.
-- Release any new UI listeners or playback state through the same lifecycle.
-- Do not recreate or dispose component geometry/materials merely to change their pose.
-- `tests/viewer.spec.ts` checks camera controls and UI behavior; it does not establish that part-layout transitions work.
-- For new transition behavior, check endpoints, interrupted/reversed motion, and unchanged stored targets.
-- Verify progress is elapsed-time based and playback stops after cleanup.
-- Preserve orbit interaction during transitions unless a deliberate interaction change is requested.
-- Follow [scene standards](threejs.instructions.md) and [Playwright requirements](playwright.instructions.md) when changing implementation or tests.
+Use `tests/layout.spec.ts` for inventory, independent snapshots, parent-aware
+world coverage, broad-face alignment/AABB gaps, actual skinned-vertex endpoint
+envelopes, display diagonals/connectivity/body-following/frame clearance and transition-frustum
+sampling at desktop/mobile/landscape, camera scale/pose/resize behavior.
+Use `tests/fold.spec.ts` for elapsed cadence, exact endpoints, full-duration
+interruptions, duration validation, initial/live reduced motion, and cleanup.
+`tests/viewer.spec.ts` covers visible mode/status/duration/focus/camera/help/touch
+contracts. Numeric tests do not replace human visual approval or establish
+teardown accuracy. Follow [three.js](threejs.instructions.md) and
+[Playwright](playwright.instructions.md) requirements.
