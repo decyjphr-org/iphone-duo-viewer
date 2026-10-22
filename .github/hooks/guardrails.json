@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [{
+      "type": "command",
+      "matcher": "bash|edit|create|apply_patch",
+      "bash": "./.github/hooks/guard.sh",
+      "timeoutSec": 10
+    }],
+    "postToolUse": [{
+      "type": "command",
+      "matcher": "edit|create|apply_patch",
+      "bash": "./.github/hooks/format.sh"
+    }]
+  }
+}
