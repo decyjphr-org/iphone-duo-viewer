@@ -1,3 +1,4 @@
+// Connect UI and viewer lifecycles so hot reload tears both down together.
 import './style.css';
 import { createViewer } from './scene';
 import { createUI } from './ui';
