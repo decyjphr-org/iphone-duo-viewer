@@ -1,4 +1,4 @@
-import type { CameraActions } from './controls';
+import type { ViewerActions } from './scene';
 
 function createButton(label: string, text = label): HTMLButtonElement {
   const button = document.createElement('button');
@@ -17,6 +17,8 @@ export function createUI(root: HTMLElement) {
   const viewStatus = document.createElement('p');
   viewStatus.className = 'view-status';
   viewStatus.textContent = 'Closed view';
+  viewStatus.setAttribute('role', 'status');
+  viewStatus.setAttribute('aria-live', 'polite');
   header.append(title, viewStatus);
 
   const main = document.createElement('main');
@@ -100,20 +102,36 @@ export function createUI(root: HTMLElement) {
   availability.setAttribute('role', 'note');
   availability.textContent = 'Coming soon';
   knollingControl.append(knolling, availability);
+  const foldButton = createButton('Open phone');
+  foldButton.setAttribute('aria-pressed', 'false');
+  const schematic = document.createElement('p');
+  schematic.className = 'interaction-hint';
+  schematic.textContent = 'Schematic book fold — not verified hardware geometry.';
 
-  panel.append(cameraActions, hint, help, knollingControl);
+  panel.append(cameraActions, hint, help, foldButton, schematic, knollingControl);
   main.append(viewer, panel);
   root.append(header, main);
 
+  let unsubscribeFold: (() => void) | undefined;
   return {
     viewer,
-    connect(actions: CameraActions) {
+    connect(actions: ViewerActions) {
       zoomIn.addEventListener('click', actions.zoomIn, { signal });
       zoomOut.addEventListener('click', actions.zoomOut, { signal });
       resetView.addEventListener('click', actions.resetView, { signal });
+      foldButton.addEventListener('click', actions.toggleFold, { signal });
+      unsubscribeFold?.();
+      unsubscribeFold = actions.subscribeFold(({ state, requestedOpen }) => {
+        foldButton.setAttribute('aria-pressed', String(requestedOpen));
+        viewStatus.textContent = {
+          closed: 'Closed view', opening: 'Opening phone…',
+          open: 'Open view', closing: 'Closing phone…',
+        }[state];
+      });
     },
     dispose() {
       listeners.abort();
+      unsubscribeFold?.();
     },
   };
 }

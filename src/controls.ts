@@ -1,4 +1,4 @@
-import type { PerspectiveCamera } from 'three';
+import type { PerspectiveCamera, Vector3 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 export interface CameraActions {
@@ -21,6 +21,7 @@ export function createCameraControls(
   camera: PerspectiveCamera,
   canvas: HTMLCanvasElement,
   size: number,
+  onReducedMotion: (reduce: boolean) => void = () => {},
 ) {
   const orbit = new OrbitControls(camera, canvas);
   orbit.minDistance = size;
@@ -31,6 +32,7 @@ export function createCameraControls(
   function updateMotionPreference() {
     orbit.enableDamping = !reducedMotion.matches;
     orbit.update();
+    onReducedMotion(reducedMotion.matches);
   }
   updateMotionPreference();
   reducedMotion.addEventListener('change', updateMotionPreference);
@@ -81,6 +83,14 @@ export function createCameraControls(
 
   return {
     ...actions,
+    setHome(position: Vector3, target: Vector3, distance: number, apply: boolean) {
+      const atHome = camera.position.distanceTo(orbit.position0) < 1e-8
+        && orbit.target.distanceTo(orbit.target0) < 1e-8;
+      orbit.maxDistance = Math.max(size * 10, distance * 2);
+      orbit.position0.copy(position);
+      orbit.target0.copy(target);
+      if (apply || atHome) actions.resetView();
+    },
     update: () => orbit.update(),
     dispose() {
       canvas.removeEventListener('keydown', onKeyDown);

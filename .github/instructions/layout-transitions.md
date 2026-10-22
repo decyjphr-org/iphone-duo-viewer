@@ -4,12 +4,14 @@
 ## Current implementation
 
 - `src/layout.ts` stores layout snapshots; it does not compute distinct target layouts.
-- `src/parts.ts` creates the `closed-body` mesh, snapshots it, and adds it to the `iphone-duo` assembly.
+- `src/parts.ts` creates `rear-panel` and `front-panel` meshes, with the front under a persistent `book-hinge` group in the `iphone-duo` assembly.
 - Both saved layouts currently describe the same initial transform.
-- `src/scene.ts` continuously renders and calls the camera-control wrapper's `update()`; it does not animate parts.
+- `src/scene.ts` drives `fold.update(timestamp)`, camera controls, and rendering in one RAF loop.
 - `src/controls.ts` owns camera actions, keyboard input, reduced-motion handling, and reset behavior.
 - `src/ui.ts` creates a disabled Knolling button with `aria-pressed="false"` alongside working camera controls.
-- There is no transition controller, duration, easing function, or assembled-layout snapshot yet.
+- `src/fold.ts` animates only the hinge's Y angle (0 to -PI), not layout matrices: 600 ms full-range smoothstep, distance-scaled reversal from the displayed angle, exact endpoints, and instant reduced-motion completion, including live changes.
+- Fold states are closed/opening/open/closing; subscriptions sync immediately and are cleared on disposal. UI unsubscribes separately. `Open phone` pressed state reflects the requested target; Reset is camera-only.
+- The geometry is schematic, not verified hardware. Exploded/knolled snapshots remain placeholders, not animated targets.
 - Treat the implementation guidance below as requirements for future work, not existing APIs.
 
 ## Stored transform contract
@@ -38,16 +40,17 @@ export function storePartLayouts(part: Object3D): void {
 
 ## Extending the existing loop
 
-The current loop in `src/scene.ts` is:
+The loop in `src/scene.ts` follows:
 
 ```ts
 let frame: number;
-function animate() {
+function animate(now: number) {
+  fold.update(now);
   controls.update();
   renderer.render(scene, camera);
   frame = requestAnimationFrame(animate);
 }
-animate();
+frame = requestAnimationFrame(animate);
 ```
 
 - Add transition updates before rendering in this loop; do not start another loop from the UI.
@@ -65,7 +68,7 @@ animate();
 
 - Keep target calculations in `src/layout.ts`; parts own physical geometry and the scene owns playback.
 - Read physical dimensions from `src/specs.ts` and express target translations in millimeters.
-- The current closed-body proxy cannot demonstrate separation of internal components.
+- The two schematic panels do not model internal components or a verified hardware hinge.
 - Before wiring the toggle, define what the off state restores: closed, assembled, and exploded are not interchangeable.
 - Camera buttons already connect through the `CameraActions` interface and `createUI().connect(actions)`; extend that boundary deliberately when adding layout actions.
 - Update `aria-pressed` consistently with the chosen toggle semantics once the button becomes functional.
