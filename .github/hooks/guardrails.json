@@ -1,6 +1,12 @@
 {
   "version": 1,
   "hooks": {
+    "sessionStart": [{
+      "type": "command",
+      "bash": "bash ./.github/hooks/session-start.sh",
+      "cwd": ".",
+      "timeoutSec": 10
+    }],
     "preToolUse": [{
       "type": "command",
       "matcher": "bash|edit|create|apply_patch",
